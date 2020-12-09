@@ -6,7 +6,9 @@ import ReactDom from "react-dom";
 function sanitizeID(identifier) {
     return identifier//.toString().trim().replace(" ", "_");
 }
+
 let globalTreeNodes = {};
+
 class Node extends React.Component {
     constructor(props) {
         super(props);
@@ -23,7 +25,7 @@ class Node extends React.Component {
         if (mode === "add") {
             this.fpointer = this.fpointer.concat(identifier);
         } else if (mode === "delete") {
-            this.fpointer = this.fpointer.list.filter(x=> x.identifier != identifier);
+            this.fpointer = this.fpointer.list.filter(x => x.identifier != identifier);
         } else if (mode === "insert") {
             this.fpointer = [identifier];
         }
@@ -34,7 +36,7 @@ class Node extends React.Component {
         let childNodes = null;
         // TreeNode Component calls itself if children exist
         if (this.props.fpointer) {
-          console.log('current node: ', this.props.tag, 'children: ', this.props.fpointer)
+            console.log('current node: ', this.props.tag, 'children: ', this.props.fpointer)
             childNodes = this.props.treeNodes.filter(key => this.props.fpointer.includes(key.identifier)).map(function (child) {
                 return (<Node
                     key={child.identifier}
@@ -48,9 +50,9 @@ class Node extends React.Component {
         //return the current treeNode
         // display children if existent
 
-            console.log(this.props.identifier)
+        console.log(this.props.identifier)
 
-            console.log(this.props.tag)
+        console.log(this.props.tag)
         return (
             <li id={this.props.identifier}>{this.props.tag}
                 {childNodes ? <ul>{childNodes}</ul> : null}
@@ -88,15 +90,28 @@ class Tree extends React.Component {
         this.updateFPointer = this.updateFPointer.bind(this);
         this.createNode = this.createNode.bind(this);
         this.removeNode = this.removeNode.bind(this);
+        this.moveNode = this.moveNode.bind(this);
     }
 
     createNode(tag, identifier, type, parent) {
+
+        if (parent) {
+            // todo: check if parent exists -> create parent (?)
+            if (this.nodes[parent].type === 'file') {
+                console.log('ParentNode is file. Cannot create')
+                return false;
+            }
+            if (!(this.nodes[parent])) {
+                console.log('ParentNode does not exist. Cannot create')
+                return false;
+            }
+        }
         var node = new Node({
             tag: tag,
             identifier: identifier,
             fpointer: [],
             bpointer: null,
-            type:type
+            type: type
         });
         this.addNode(node, parent);
 
@@ -131,26 +146,40 @@ class Tree extends React.Component {
             parent = sanitizeID(parent);
         }
         console.log(typeof this.nodes)
-        this.nodes[node.identifier] =node; //update dict
+        this.nodes[node.identifier] = node; //update dict
         this.updateFPointer(parent, node.identifier, "add");
         node.bpointer = parent;
     }
 
     removeNode(identifier) {
-      var nodes = this.nodes
-      Object.keys(this.nodes).forEach(function (key){
-          if (key.startsWith(identifier)) {
-              if(nodes[nodes[key].bpointer]){
-                  nodes[nodes[key].bpointer].fpointer.pop(identifier) // delete child references from parent
-              }
-              if(nodes[key].fpointer){ // check for childNodes
-                  console.log('Not Empty. ChildNodes will be deleted')
-              }
-              delete nodes[key]; // delete node an all childNodes
-          }
-      })
-      this.nodes = nodes;
-      console.log(nodes);
+        var nodes = this.nodes
+        Object.keys(this.nodes).forEach(function (key) {
+            if (key.startsWith(identifier)) {
+                if (nodes[nodes[key].bpointer]) {
+                    nodes[nodes[key].bpointer].fpointer.pop(identifier) // delete child references from parent
+                }
+                if (nodes[key].fpointer) { // check for childNodes
+                    console.log('Not Empty. ChildNodes will be deleted')
+                }
+                delete nodes[key]; // delete node an all childNodes
+            }
+        })
+        this.nodes = nodes;
+        console.log(nodes);
+    }
+
+    moveNode(identifier_from, identifier_to) {
+        var nodeFrom = this.nodes[identifier_from]
+        var nodeTo = this.nodes[identifier_to]
+        //todo: ask if elements shall be overwriiten
+        if(nodeTo.fpointer.includes(identifier_from)){
+            return console.log('Node already in that directory.')
+        }
+
+        nodeFrom.identifier = identifier_to + identifier_from.split(identifier_to)[0] // change the identifier
+        //todo: change identifiers of all children
+        nodeTo.fpointer = nodeTo.fpointer.concat(nodeFrom.identifier) //add Node to new parent
+        nodeFrom.bpointer = nodeTo //change parent pointer of node
     }
 
 }
@@ -166,7 +195,7 @@ Tree.defaultProps = {
 };
 
 var tree = new Tree({nodes: {}, root: null});
-tree.createNode("/", "/", 'directory',null);
+tree.createNode("/", "/", 'directory', null);
 
 class App extends React.Component {
     constructor(props) {
@@ -176,6 +205,7 @@ class App extends React.Component {
             nodeType: '',
             nodeTag: '',
             nodeIdentifier: '',
+            nodeIdentifierTo: '',
             parent: '',
             counter: 0,
             tree: tree,
@@ -195,10 +225,10 @@ class App extends React.Component {
         tree.createNode("Max", "max", "harry");
         tree.createNode("Lisa", "lisa", "max");
         tree.createNode("Tom", "tom", "harry");*/
-        tree.createNode(this.state.nodeTag, this.state.nodeIdentifier, this.state.nodeType ,this.state.parent)
+        tree.createNode(this.state.nodeTag, this.state.nodeIdentifier, this.state.nodeType, this.state.parent)
         this.setState({
-          tree: tree
-        },() => console.log('ADDED'));
+            tree: tree
+        }, () => console.log('ADDED'));
     }
 
 
@@ -208,12 +238,15 @@ class App extends React.Component {
         tree.removeNode(this.state.nodeIdentifier)
         this.setState({
             tree: tree
-          },() => console.log('DELETED'));
+        }, () => console.log('DELETED'));
 
     }
 
     move() {
-        //return ReactDom.render(<TreeNode/>, document.getElementById('a'))
+        tree.moveNode(this.state.nodeIdentifier, this.state.nodeIdentifierTo)
+        this.setState({
+            tree: tree
+        }, () => console.log('DELETED'));
     }
 
     link() {
@@ -231,8 +264,7 @@ class App extends React.Component {
         //console.log(command)// split the user's command
         var idx = command[2].lastIndexOf('/')
         var parentName = command[2].substring(0, idx)
-
-        var nodeTag = command[2].substring(idx+1)
+        var nodeTag = command[2].substring(idx + 1)
         if (idx === 0) parentName = command[2].substring(0, idx + 1)// + '/' // root
         if ('add' === command[0]) {
             //var par = this.findParent(command[2]);
@@ -260,8 +292,11 @@ class App extends React.Component {
             });
         } else if ('move' === command[0]) {
             this.setState({
-                nodeType: command[1],
-                nodeTag: command[2]
+                nodeTag: nodeTag,
+                nodeIdentifier: command[1],
+                nodeIdentifierTo: command[2],
+                parent: parentName,
+                counter: this.state.counter + 1,
             }, () => {
                 this.move()
             });
@@ -280,56 +315,56 @@ class App extends React.Component {
 
     render() {
         //console.log('render methods treeNodeList: ', this.state.tree)
-        if(this.state.tree.nodes){
-          //var treenodes = Object.entries(this.state.tree.nodes).filter((item) => item.idenfitier = this.state.tree.root);
-          var treeNode = this.state.tree.nodes['/']
-          globalTreeNodes = this.state.tree.nodes;
-          /*let treeNodes = [this.state.tree.nodes['harry']].map(function (treeNode) {
-              return (<Node
-                  key={treeNode.identifier}
-                  identifier={treeNode.identifier}
-                  tag={treeNode.tag}
-                  fpointer={treeNode.fpointer}
-              />)
-          })*/return(
-            <div>
-                <button onClick={this.handleCommand}>Go</button>
-                <label>User Command
-                    <input
-                        type="text"
-                        name="command"
-                        value={this.state.command}
-                        onChange={this.handleChange}
-                    />
-                </label>
-                <button onClick={this.delete}>Delete</button>
-                <button onClick={this.move}>Move</button>
-                <button onClick={this.link}>Link</button>
-                <ul id="treeRoot"><Node key={treeNode.identifier}
-                  identifier={treeNode.identifier}
-                  tag={treeNode.tag}
-                  fpointer={treeNode.fpointer}
-                  treeNodes={Object.values(this.state.tree.nodes)}  /></ul>
-            </div>
-        )
-        }
-        else{
-          return (
-            <div>
-                <button onClick={this.handleCommand}>Go</button>
-                <label>User Command
-                    <input
-                        type="text"
-                        name="command"
-                        value={this.state.command}
-                        onChange={this.handleChange}
-                    />
-                </label>
-                <button onClick={this.delete}>Delete</button>
-                <button onClick={this.move}>Move</button>
-                <button onClick={this.link}>Link</button>
-            </div>
-        )
+        if (this.state.tree.nodes) {
+            //var treenodes = Object.entries(this.state.tree.nodes).filter((item) => item.idenfitier = this.state.tree.root);
+            var treeNode = this.state.tree.nodes['/']
+            globalTreeNodes = this.state.tree.nodes;
+            /*let treeNodes = [this.state.tree.nodes['harry']].map(function (treeNode) {
+                return (<Node
+                    key={treeNode.identifier}
+                    identifier={treeNode.identifier}
+                    tag={treeNode.tag}
+                    fpointer={treeNode.fpointer}
+                />)
+            })*/
+            return (
+                <div>
+                    <button onClick={this.handleCommand}>Go</button>
+                    <label>User Command
+                        <input
+                            type="text"
+                            name="command"
+                            value={this.state.command}
+                            onChange={this.handleChange}
+                        />
+                    </label>
+                    <button onClick={this.delete}>Delete</button>
+                    <button onClick={this.move}>Move</button>
+                    <button onClick={this.link}>Link</button>
+                    <ul id="treeRoot"><Node key={treeNode.identifier}
+                                            identifier={treeNode.identifier}
+                                            tag={treeNode.tag}
+                                            fpointer={treeNode.fpointer}
+                                            treeNodes={Object.values(this.state.tree.nodes)}/></ul>
+                </div>
+            )
+        } else {
+            return (
+                <div>
+                    <button onClick={this.handleCommand}>Go</button>
+                    <label>User Command
+                        <input
+                            type="text"
+                            name="command"
+                            value={this.state.command}
+                            onChange={this.handleChange}
+                        />
+                    </label>
+                    <button onClick={this.delete}>Delete</button>
+                    <button onClick={this.move}>Move</button>
+                    <button onClick={this.link}>Link</button>
+                </div>
+            )
         }
     }
 }
