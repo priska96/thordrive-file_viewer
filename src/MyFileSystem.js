@@ -6,9 +6,41 @@ import ReactDom from "react-dom";
 function sanitizeID(identifier) {
     return identifier//.toString().trim().replace(" ", "_");
 }
+function executeFunctionByName(functionName, context /*, args */) {
+  var args = Array.prototype.slice.call(arguments, 2);
+  var namespaces = functionName.split(".");
+  var func = namespaces.pop();
+  for(var i = 0; i < namespaces.length; i++) {
+    context = context[namespaces[i]];
+  }
+  return context[func].apply(context, args);
+}
+
+
+function dfs(start, target){
+  console.log("Visiting Node " + start.name);
+    if (start.name === target) {
+        // We have found the goal node we we're searching for
+        console.log("Found the node we're looking for!");
+        return start;
+    }
+
+    // Recurse with all children
+    for (var i = 0; i < start.children.length; i++) {
+        var result = dfs(start.children[i], target);
+        if (result != null) {
+            // We've found the goal node while going down that child
+            return result;
+        }
+    }
+
+    // We've gone through all children and not found the goal node
+    console.log("Went through all children of " + start.value + ", returning to it's parent.");
+    return null;
+}
 
 let globalTreeNodes = {};
-
+let globalRemoveNodes = [];
 class Node extends React.Component {
     constructor(props) {
         super(props);
@@ -19,16 +51,81 @@ class Node extends React.Component {
         if (props.type) this.type = props.type;
         if (props.treeNodes) this.treeNodes = props.treeNodes;
         this.updateFPointer = this.updateFPointer.bind(this);
+        this.updateIdentifier = this.updateIdentifier.bind(this);
     }
 
     updateFPointer(identifier, mode) {
         if (mode === "add") {
             this.fpointer = this.fpointer.concat(identifier);
         } else if (mode === "delete") {
-            this.fpointer = this.fpointer.list.filter(x => x.identifier != identifier);
+            this.fpointer = this.fpointer.filter(x => x.identifier !== identifier);
         } else if (mode === "insert") {
             this.fpointer = [identifier];
         }
+    }
+
+
+    updateSuccessors(nid, mode='add', replace=null, tree_id=null) {
+        /***
+         Update the children list with different modes: addition (Node.ADD or
+         Node.INSERT) and deletion (Node.DELETE).
+         ***/
+        if (nid === null) return
+
+        var manipulatorAppend = function () {
+            this.successors(tree_id).append(nid)
+        }
+
+        var manipulatorDelete = function () {
+            if (this.fpointer.includes(nid)) {
+                this.successors(tree_id).remove(nid)
+            } else {
+                console.log('Nid %s wasn\'t present in fpointer' % nid)
+            }
+        }
+
+        var manipulatorInsert = function () {
+            console.log("WARNING: INSERT is deprecated to ADD mode")
+            this.updateSuccessors(nid, tree_id)
+        }
+
+        var manipulatorReplace = function () {
+            if (replace === null) {
+                console.log('Argument "repalce" should be provided when mode is {}'.format(mode))
+            }
+            var ind = this.successors(tree_id).index(nid)
+            this.successors(tree_id)[ind] = replace
+        }
+
+        var manipulatorLookup = {
+            'add': 'manipulatorAppend',
+            'delete': 'manipulatorDelete',
+            'insert': 'manipulatorInsert',
+            'replace': 'manipulatorReplace'
+        }
+
+        if (!(mode in manipulatorLookup)) {
+            console.log('Unsupported node updating mode ', mode)
+        }
+
+        var f_name = manipulatorLookup[mode]
+        return executeFunctionByName(f_name,this.updateSuccessors, null)
+    }
+
+
+
+    updateIdentifier(thisNodes, nodeFrom) {
+
+        let node = this;
+        node.identifier = nodeFrom.identifier + '/' + node.tag
+        if (this.fpointer.length === 0) {
+            return true;
+        }
+        Object.values(thisNodes).filter(key => node.fpointer.includes(key.identifier)).map(function (child) {
+            console.log(child)
+            //child.identifier = node.identifier + '/' + child.tag
+            return child.updateIdentifier(thisNodes, node)
+        })
     }
 
 
@@ -36,7 +133,7 @@ class Node extends React.Component {
         let childNodes = null;
         // TreeNode Component calls itself if children exist
         if (this.props.fpointer) {
-            console.log('current node: ', this.props.tag, 'children: ', this.props.fpointer)
+            //console.log('current node: ', this.props.tag, 'children: ', this.props.fpointer)
             childNodes = this.props.treeNodes.filter(key => this.props.fpointer.includes(key.identifier)).map(function (child) {
                 return (<Node
                     key={child.identifier}
@@ -49,10 +146,6 @@ class Node extends React.Component {
         }
         //return the current treeNode
         // display children if existent
-
-        console.log(this.props.identifier)
-
-        console.log(this.props.tag)
         return (
             <li id={this.props.identifier}>{this.props.tag}
                 {childNodes ? <ul>{childNodes}</ul> : null}
@@ -67,7 +160,7 @@ Node.propTypes = {
     tag: PropTypes.string,
     identifier: PropTypes.string,
     fpointer: PropTypes.array,
-    bpointer: Node,
+    bpointer: PropTypes.string,
     type: PropTypes.string,
     treeNodes: PropTypes.array
 };
@@ -76,7 +169,7 @@ Node.defaultProps = {
     tag: "",
     identifier: "",
     fpointer: [],
-    bpointer: null,
+    bpointer: '',
     type: 'directory',
     treeNodes: []
 };
@@ -87,10 +180,32 @@ class Tree extends React.Component {
         this.nodes = props.nodes;
         this.root = props.root;
         this.addNode = this.addNode.bind(this);
+        this.updateBPointer = this.updateBPointer.bind(this)
         this.updateFPointer = this.updateFPointer.bind(this);
         this.createNode = this.createNode.bind(this);
         this.removeNode = this.removeNode.bind(this);
         this.moveNode = this.moveNode.bind(this);
+        this.isAncestor = this.isAncestor.bind(this);
+        this.updateIdentifier = this.updateIdentifier.bind(this)
+    }
+
+    isAncestor(ancestor, grandChild){
+        /***Check if the @ancestor the preceding nodes of @grandchild.
+        :param ancestor: the node identifier
+        :param grandchild: the node identifier
+        :return: True or False
+         ***/
+        /*var parent = this.nodes[grandChild].predecessor(this._identifier)
+        var child = ancestor
+        while(parent !== null)
+            if(parent === ancestor) {
+                return true
+            }
+            else {
+                child = this.nodes[child].predecessor(this._identifier)
+                parent = this.nodes[child].predecessor(this._identifier)
+            }*/
+        return false
     }
 
     createNode(tag, identifier, type, parent) {
@@ -126,9 +241,20 @@ class Tree extends React.Component {
             //var elem = this.nodes.filter((item) => item.identifier === nid)
             //this.nodes.filter(item => item.identifier === nid)[0].updateFPointer(identifier, mode);
             this.nodes[nid].updateFPointer(identifier, mode);
+            //this.nodes[nid].updateSuccessors(identifier, mode, null,this.root.identifier);
         }
     }
-
+    updateBPointer(nid, identifier) {
+        this.nodes[nid].bpointer = identifier
+    }
+    updateIdentifier(){
+        var nodes = this.nodes
+        globalRemoveNodes.forEach(function (key){
+            nodes[nodes[key].identifier] = nodes[key]
+            delete nodes[key]
+        })
+        this.nodes = nodes
+    }
     addNode(node, parent) {
         if (typeof node === Node) {
             return console.log("First parameter must be object of Class::Node.");
@@ -168,18 +294,52 @@ class Tree extends React.Component {
         console.log(nodes);
     }
 
-    moveNode(identifier_from, identifier_to) {
-        var nodeFrom = this.nodes[identifier_from]
-        var nodeTo = this.nodes[identifier_to]
-        //todo: ask if elements shall be overwriiten
-        if(nodeTo.fpointer.includes(identifier_from)){
-            return console.log('Node already in that directory.')
+    moveNode(identifierFrom, identifiertTo, originalFrom){
+        console.log("Visiting Node " + identifierFrom);
+        var nodeFrom = this.nodes[identifierFrom];
+        var nodeTo = this.nodes[identifiertTo]
+        if (nodeFrom.fpointer.length === 0) {
+            // We have found the goal node we we're searching for
+            console.log("Found the node we're looking for!");
+            globalRemoveNodes.push(nodeFrom.identifier);
+            var newKey = identifiertTo + nodeFrom.identifier.replace(originalFrom, identifiertTo)
+            var newBP = newKey.replace('/'+nodeFrom.tag,'')
+            this.nodes[identifierFrom].identifier = newKey
+            this.nodes[identifierFrom].bpointer = newBP
+            console.log('new Key: ', newKey, 'new bpointer: ', this.nodes[identifierFrom].bpointer)
+            return newKey;
         }
 
-        nodeFrom.identifier = identifier_to + identifier_from.split(identifier_to)[0] // change the identifier
-        //todo: change identifiers of all children
-        nodeTo.fpointer = nodeTo.fpointer.concat(nodeFrom.identifier) //add Node to new parent
-        nodeFrom.bpointer = nodeTo //change parent pointer of node
+        // Recurse with all children
+        var newFPointer = []
+        for (var i = 0; i < nodeFrom.fpointer.length; i++) {
+            var result = tree.moveNode(nodeFrom.fpointer[i], identifiertTo,originalFrom);
+            console.log('returned newkey ',result)
+            newFPointer.push(result)
+        }
+
+        // We've gone through all children and not found the goal node
+        console.log("Went through all children of " + nodeFrom.identifier + ", returning to it's parent.");
+
+        var nKey = identifiertTo + nodeFrom.identifier.replace(originalFrom, identifiertTo)// + '/' + nodeFrom.tag
+        var nBP = nKey.replace('/'+nodeFrom.tag,'')
+        console.log('new Key: ', nKey)
+        globalRemoveNodes.push(nodeFrom.identifier);
+        if(originalFrom === identifierFrom){ // first recursive call
+            this.nodes[identifiertTo].fpointer.push(nKey) // add from node as child node of Tonode
+            var orgParent = globalTreeNodes[globalTreeNodes[originalFrom].bpointer]
+            // todo: remove element from parent
+            console.log(this.nodes[orgParent.identifier].fpointer)
+            var idx = this.nodes[orgParent.identifier].fpointer.indexOf(identifierFrom)
+            this.nodes[orgParent.identifier].fpointer = this.nodes[orgParent.identifier].fpointer.splice(idx,1)
+            console.log(this.nodes[orgParent.identifier].fpointer)
+        }
+        this.nodes[identifierFrom].identifier = nKey //update current identifier
+        this.nodes[identifierFrom].fpointer = newFPointer // update its children
+        this.nodes[identifierFrom].bpointer = nBP
+
+        return nKey;
+
     }
 
 }
@@ -196,6 +356,17 @@ Tree.defaultProps = {
 
 var tree = new Tree({nodes: {}, root: null});
 tree.createNode("/", "/", 'directory', null);
+
+tree.createNode("a", "/a", 'directory', '/');
+
+tree.createNode("b", "/b", 'directory', '/');
+tree.createNode("a", "/b/a", 'directory', '/b');
+tree.createNode("c", "/b/a/c", 'directory', '/b/a');
+tree.createNode("d", "/b/a/c/d", 'directory', '/b/a/c');
+
+tree.createNode("e", "/b/a/c/d/e", 'file', '/b/a/c/d');
+tree.createNode("f", "/b/a/c/f", 'directory', '/b/a/c');
+
 
 class App extends React.Component {
     constructor(props) {
@@ -243,10 +414,11 @@ class App extends React.Component {
     }
 
     move() {
-        tree.moveNode(this.state.nodeIdentifier, this.state.nodeIdentifierTo)
+        tree.moveNode(this.state.nodeIdentifier, this.state.nodeIdentifierTo,this.state.nodeIdentifier)
+        tree.updateIdentifier()
         this.setState({
             tree: tree
-        }, () => console.log('DELETED'));
+        }, () => console.log('MOVED'));
     }
 
     link() {
