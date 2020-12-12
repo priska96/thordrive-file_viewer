@@ -2,16 +2,14 @@
 import React from "react";
 import PropTypes from "prop-types";
 import './App.css';
-import Popup from 'reactjs-popup';
-import 'reactjs-popup/dist/index.css';
-import cloneDeep from 'lodash/cloneDeep';
-
+//import Popup from 'reactjs-popup';
+//import 'reactjs-popup/dist/index.css';
 
 function sanitizeID(identifier) {
     return identifier//.toString().trim().replace(" ", "_");
 }
 
-function executeFunctionByName(functionName, context /*, args */) {
+/*function executeFunctionByName(functionName, context , args ) {
     var args = Array.prototype.slice.call(arguments, 2);
     var namespaces = functionName.split(".");
     var func = namespaces.pop();
@@ -19,6 +17,17 @@ function executeFunctionByName(functionName, context /*, args */) {
         context = context[namespaces[i]];
     }
     return context[func].apply(context, args);
+}*/
+
+function nthLastIndexOf(str, searchString, n) {
+    if (str === null) {
+        return -1;
+    }
+    if (!n || isNaN(n) || n <= 1) {
+        return str.lastIndexOf(searchString);
+    }
+    n--;
+    return str.lastIndexOf(searchString, nthLastIndexOf(str, searchString, n) - 1);
 }
 
 
@@ -44,6 +53,44 @@ function executeFunctionByName(functionName, context /*, args */) {
     return null;
 }*/
 
+
+/*const bfs = function (graph, start) {
+    //A Queue to manage the nodes that have yet to be visited
+    var queue = [];
+    //Adding the node to start from
+    queue.push(start);
+    //A boolean array indicating whether we have already visited a node
+    var visited = [];
+    //(The start node is already visited)
+    visited[start] = true;
+    // Keeping the distances (might not be necessary depending on your use case)
+    var distances = []; // No need to set initial values since every node is visted exactly once
+    //(the distance to the start node is 0)
+    distances[start] = 0;
+    //While there are nodes left to visit...
+    while (queue.length > 0) {
+        console.log("Visited nodes: " + visited);
+        console.log("Distances: " + distances);
+        var node = queue.shift();
+        console.log("Removing node " + node + " from the queue...");
+        //...for all neighboring nodes that haven't been visited yet....
+        for (var i = 1; i < graph[node].length; i++) {
+            if (graph[node][i] && !visited[i]) {
+                // Do whatever you want to do with the node here.
+                // Visit it, set the distance and add it to the queue
+                visited[i] = true;
+                distances[i] = distances[node] + 1;
+                queue.push(i);
+                console.log("Visiting node " + i + ", setting its distance to " + distances[i] + " and adding it to the queue");
+
+            }
+        }
+    }
+    console.log("No more nodes in the queue. Distances: " + distances);
+    return distances;
+};
+
+module.exports = {bfs};*/
 let globalTreeNodes = {};
 let globalRemoveNodes = [];
 
@@ -58,9 +105,12 @@ class Node extends React.Component {
         if (props.treeNodes) this.treeNodes = props.treeNodes;
         if (props.properties) this.properties = props.properties;
         if (props.link) this.link = props.link;
+        if (props.linkTo) this.linkTo = props.linkTo;
         this.updateFPointer = this.updateFPointer.bind(this);
+        this.updateLinkTo = this.updateLinkTo.bind(this);
         this.updateIdentifier = this.updateIdentifier.bind(this);
         this.updateSizeProp = this.updateSizeProp.bind(this);
+        this.updateProperties = this.updateProperties.bind(this);
     }
 
     updateFPointer(identifier, mode) {
@@ -68,62 +118,30 @@ class Node extends React.Component {
             this.fpointer = this.fpointer.concat(identifier);
         } else if (mode === "delete") {
             this.fpointer = this.fpointer.filter(x => x !== identifier);
-        } else if (mode === "insert") {
-            this.fpointer = [identifier];
+        } else if (mode === "move") {
+            this.fpointer = identifier;
         }
         this.updateSizeProp()
     }
 
-    updateSizeProp() {
-        //   this.properties.size = this.fpointer.length > 0 ? this.fpointer.length.toString() + 'KB' : '1KB'
+    updateLinkTo(identifier, mode) {
+        if (mode === "add") {
+            this.linkTo = this.linkTo.concat(identifier);
+        } else if (mode === "delete") {
+            this.linkTo = this.linkTo.filter(x => x !== identifier);
+        } else if (mode === "insert") {
+            this.linkTo = [identifier];
+        }
     }
 
-
-    updateSuccessors(nid, mode = 'add', replace = null, tree_id = null) {
-        /***
-         Update the children list with different modes: addition (Node.ADD or
-         Node.INSERT) and deletion (Node.DELETE).
-         ***/
-        if (nid === null) return
-
-        var manipulatorAppend = function () {
-            this.successors(tree_id).append(nid)
+    updateProperties(prop) {
+        if (prop === 'hide') {
+            this.properties.hide = !(this.properties.hide)
         }
+    }
 
-        var manipulatorDelete = function () {
-            if (this.fpointer.includes(nid)) {
-                this.successors(tree_id).remove(nid)
-            } else {
-                console.log('Nid %s wasn\'t present in fpointer' % nid)
-            }
-        }
-
-        var manipulatorInsert = function () {
-            console.log("WARNING: INSERT is deprecated to ADD mode")
-            this.updateSuccessors(nid, tree_id)
-        }
-
-        var manipulatorReplace = function () {
-            if (replace === null) {
-                console.log('Argument "repalce" should be provided when mode is {}'.format(mode))
-            }
-            var ind = this.successors(tree_id).index(nid)
-            this.successors(tree_id)[ind] = replace
-        }
-
-        var manipulatorLookup = {
-            'add': 'manipulatorAppend',
-            'delete': 'manipulatorDelete',
-            'insert': 'manipulatorInsert',
-            'replace': 'manipulatorReplace'
-        }
-
-        if (!(mode in manipulatorLookup)) {
-            console.log('Unsupported node updating mode ', mode)
-        }
-
-        var f_name = manipulatorLookup[mode]
-        return executeFunctionByName(f_name, this.updateSuccessors, null)
+    updateSizeProp() {
+        //   this.properties.size = this.fpointer.length > 0 ? this.fpointer.length.toString() + 'KB' : '1KB'
     }
 
 
@@ -134,8 +152,6 @@ class Node extends React.Component {
             return true;
         }
         Object.values(thisNodes).filter(key => node.fpointer.includes(key.identifier)).map(function (child) {
-            console.log(child)
-            //child.identifier = node.identifier + '/' + child.tag
             return child.updateIdentifier(thisNodes, node)
         })
     }
@@ -145,6 +161,7 @@ class Node extends React.Component {
         let childNodes = null;
         // TreeNode Component calls itself if children exist
         if (this.props.fpointer) {
+            //console.log(this.props.treeNodes)
             //console.log('current node: ', this.props.tag, 'children: ', this.props.fpointer)
             childNodes = this.props.treeNodes.filter(key => this.props.fpointer.includes(key.identifier)).map(function (child) {
                 return (<Node
@@ -166,14 +183,15 @@ class Node extends React.Component {
             iconClass = 'fa fa-code'
             fileExtension = '.' + this.props.properties.fileExtension
         }
-        if (!(this.props.properties.visible)) {
+        if (this.props.properties.hide) {
             visibility = '(hidden)';
         }
         //return the current treeNode
         // display children if existent
         return (
             <li id={this.props.identifier} className={this.props.type}>
-                <i className={iconClass}></i>{this.props.link ?<i className="fas fa-share"></i> : null} {this.props.tag}{fileExtension}<span> - {this.props.properties.size} {visibility}</span>
+                <i className={iconClass}></i>{this.props.link ?
+                <i className="fas fa-share"></i> : null} {this.props.tag}{fileExtension}<span> - {this.props.properties.size} {visibility}</span>
                 {childNodes ? <ul>{childNodes}</ul> : null}
             </li>
         )
@@ -190,7 +208,8 @@ Node.propTypes = {
     type: PropTypes.string,
     treeNodes: PropTypes.array,
     properties: PropTypes.object,
-    link: PropTypes.string
+    link: PropTypes.string,
+    linkTo: PropTypes.array,
 };
 
 Node.defaultProps = {
@@ -200,8 +219,9 @@ Node.defaultProps = {
     bpointer: '',
     type: 'directory',
     treeNodes: [],
-    properties: {size: '1KB', visible: true, fileExtension: 'txt'},
-    link: ''
+    properties: {size: '1KB', hide: false, fileExtension: 'txt'},
+    link: '',
+    linkTo: []
 };
 
 class Tree extends React.Component {
@@ -213,6 +233,7 @@ class Tree extends React.Component {
         this.updateBPointer = this.updateBPointer.bind(this)
         this.updateFPointer = this.updateFPointer.bind(this);
         this.createNode = this.createNode.bind(this);
+        this.createNodeRecursive = this.createNodeRecursive.bind(this)
         this.removeNode = this.removeNode.bind(this);
         this.moveNode = this.moveNode.bind(this);
         this.linkNode = this.linkNode.bind(this);
@@ -240,7 +261,7 @@ class Tree extends React.Component {
     }
 
     updateFPointer(nid, identifier, mode) {
-        if (nid === null) {
+        if (nid === null || mode === 'link') {
             return false;
         } else {
             this.nodes[nid].updateFPointer(identifier, mode);
@@ -248,7 +269,7 @@ class Tree extends React.Component {
     }
 
     updateBPointer(nid, identifier) {
-        if(nid === '/') return
+        if (nid === '/') return
         this.nodes[nid].bpointer = identifier
     }
 
@@ -261,58 +282,94 @@ class Tree extends React.Component {
         this.nodes = nodes
     }
 
-    createNode(tag, identifier, type, parent) {
+    createNodeRecursive(tag, identifier, type, parent, mode, recLvl) {
+        let that = this;
+        if (parent === '') parent = '/'
+        var node;
+        if (this.nodes[parent]) { // stop recursion when parent exists
+            node = new Node({
+                tag: tag,
+                identifier: identifier,
+                fpointer: [],
+                bpointer: null,
+                type: type,
+                link: '',
+                linkTo: [],
+                properties: {}
+            });
+            this.addNode(node, parent, mode);
+            return [true, node];
+        }
+        that.createNodeRecursive(parent.substring(parent.lastIndexOf('/') + 1), parent, 'directory', parent.substring(0, parent.lastIndexOf('/')), 'add', recLvl + 1)
+        node = new Node({
+            tag: tag,
+            identifier: identifier,
+            fpointer: [],
+            bpointer: null,
+            type: type,
+            link: '',
+            linkTo: [],
+            properties: {}
+        });
+        this.addNode(node, parent, mode);
+        return [true, node];
+    }
+
+    createNode(tag, identifier, type, parent, mode) {
         // Exception Handling
-        if (parent) {
-            // todo: check if parent exists -> create parent (?)
-            // parent is file
-            if (this.nodes[parent].type === 'file') {
-                var errorMsg = {
+        var errorMsg;
+        if (mode !== 'link') {
+            if (parent) {
+                //parent does not exist
+                if (!(this.nodes[parent])) {
+                    errorMsg = {
+                        open: true,
+                        messageText: 'The provided parent directory does not exist. Do you wish to create the parent directories?',
+                        messageTitle: 'Error: Parent does not exist',
+                        icon: 'fas fa-times-circle',
+                        proceed: 'Proceed',
+                        cancel: 'Close',
+                        callback: 'addRecursive'
+                    }
+                    return [false, errorMsg];
+                }
+                // parent is file
+                if (this.nodes[parent].type === 'file') {
+                    errorMsg = {
                         open: true,
                         messageText: `You tried to create the ${type} ${tag} inside a file. That is not possible.`,
                         messageTitle: 'Error: Parent is type of file',
+                        icon: 'fas fa-times-circle',
                         proceed: null,
-                        cancel: null,
-                        close: 'Close'
+                        cancel: 'Close'
                     }
+                    return [false, errorMsg];
+                }
+            }
+            // file/directory exists already in directory
+            if (identifier in this.nodes) {
+                errorMsg = {
+                    open: true,
+                    messageText: `The ${type} ${tag} already exists in that directory. Cannot create the ${type} ${tag}`,
+                    messageTitle: `Error: ${type} already exists`,
+                    icon: 'fas fa-times-circle',
+                    proceed: null,
+                    cancel: 'Close'
+                }
                 return [false, errorMsg];
             }
-            //parent does not exist
-            if (!(this.nodes[parent])) {
-                var errorMsg = {
-                        open: true,
-                        messageText: `The provided parent directory does not exist. Cannot create the ${type} ${tag}.`,
-                        messageTitle: 'Error: Parent does not exist',
-                        proceed: null,
-                        cancel: null,
-                        close: 'Close'
-                    }
-                return [false, errorMsg];
-            }
-        }
-        // file/directory exists already in directory
-        if (identifier in this.nodes) {
-            var errorMsg = {
-                        open: true,
-                        messageText: `The ${type} ${tag} already exists in that directory. Cannot create the ${type} ${tag}`,
-                        messageTitle: `Error: ${type} already exists`,
-                        proceed: null,
-                        cancel: null,
-                        close: 'Close'
-                    }
-                return [false, errorMsg];
         }
         // if no parent check if root already exsits. Otherwise throw error. There can only be one root
         if (parent === null) {
             if (this.root !== null) {
-                var errorMsg = {
-                        open: true,
-                        messageText: `There can only be one root directory. Cannot create the ${type} ${tag}.`,
-                        messageTitle: 'Error: Multiple Root',
-                        proceed: null,
-                        cancel: null,
-                        close: 'Close'
-                    }
+                errorMsg = {
+                    open: true,
+                    messageText: `There can only be one root directory. Cannot create the ${type} ${tag}.`,
+                    messageTitle: 'Error: Multiple Root',
+                    icon: 'fas fa-times-circle',
+                    proceed: null,
+                    cancel: 'Close'
+                }
                 return [false, errorMsg];
             }
         }
@@ -322,12 +379,15 @@ class Tree extends React.Component {
             fpointer: [],
             bpointer: null,
             type: type,
+            link: '',
+            linkTo: [],
+            properties: {size: '1KB', hide: false, fileExtension: 'txt'},
         });
-        this.addNode(node, parent);
+        this.addNode(node, parent, mode);
         return [true, node];
     }
 
-    addNode(node, parent) {
+    addNode(node, parent, mode) {
         if (typeof node === Node) {
             return console.log("First parameter must be object of Class::Node.");
         }
@@ -337,8 +397,7 @@ class Tree extends React.Component {
             parent = sanitizeID(parent);
         }
         this.nodes[node.identifier] = node; //update dict
-        this.updateFPointer(parent, node.identifier, "add");
-
+        this.updateFPointer(parent, node.identifier, mode);
         this.updateBPointer(node.identifier, parent)
     }
 
@@ -349,69 +408,146 @@ class Tree extends React.Component {
                 if (nodes[nodes[key].bpointer]) {
                     nodes[nodes[key].bpointer].updateFPointer(identifier, 'delete') // delete child references from parent
                 }
+                if (key.includes('_linked')) {
+                    nodes[nodes[key].link].updateLinkTo(identifier, 'delete') // delete link references from parent
+                }
                 if (nodes[key].fpointer) { // check for childNodes
-                    console.log('Not Empty. ChildNodes will be deleted')
+                    //console.log('Not Empty. ChildNodes will be deleted')
                 }
                 delete nodes[key]; // delete node and all childNodes
             }
         })
         this.nodes = nodes;
-        console.log(nodes);
+        //console.log(nodes);
     }
 
     moveNode(identifierFrom, identifiertTo, originalFrom) {
-        console.log("Visiting Node " + identifierFrom);
+        let that = this;
+        //console.log("Visiting Node " + identifierFrom);
         var nodeFrom = this.nodes[identifierFrom];
-        var nodeTo = this.nodes[identifiertTo]
+        var newKey = identifiertTo + nodeFrom.identifier.replace(originalFrom, identifiertTo)
+        var newBP = newKey.replace('/' + nodeFrom.tag, '')
         if (nodeFrom.fpointer.length === 0) {
             // We have found the goal node we we're searching for
-            console.log("Found the node we're looking for!");
+            //console.log("Found the node we're looking for!");
             globalRemoveNodes.push(nodeFrom.identifier);
-            var newKey = identifiertTo + nodeFrom.identifier.replace(originalFrom, identifiertTo)
-            var newBP = newKey.replace('/' + nodeFrom.tag, '')
             this.nodes[identifierFrom].identifier = newKey
-            this.nodes[identifierFrom].bpointer = newBP
-            console.log('new Key: ', newKey, 'new bpointer: ', this.nodes[identifierFrom].bpointer)
+            this.updateBPointer(identifierFrom, newBP)
+            //this.nodes[identifierFrom].bpointer = newBP
+            //console.log('new Key: ', newKey, 'new bpointer: ', newBP)
             return newKey;
         }
 
         // Recurse with all children
         var newFPointer = []
-        for (var i = 0; i < nodeFrom.fpointer.length; i++) {
-            var result = tree.moveNode(nodeFrom.fpointer[i], identifiertTo, originalFrom);
-            console.log('returned newkey ', result)
+        nodeFrom.fpointer.forEach(function (child) {
+            var result = that.moveNode(child, identifiertTo, originalFrom);
+            //console.log('returned newkey ', result)
             newFPointer.push(result)
-        }
+        })
 
         // We've gone through all children and not found the goal node
-        console.log("Went through all children of " + nodeFrom.identifier + ", returning to it's parent.");
+        //console.log("Went through all children of " + nodeFrom.identifier + ", returning to it's parent.");
 
-        var nKey = identifiertTo + nodeFrom.identifier.replace(originalFrom, identifiertTo)// + '/' + nodeFrom.tag
-        var nBP = nKey.replace('/' + nodeFrom.tag, '')
-        console.log('new Key: ', nKey)
+        //var nKey = identifiertTo + nodeFrom.identifier.replace(originalFrom, identifiertTo)// + '/' + nodeFrom.tag
+        //var nBP = nKey.replace('/' + nodeFrom.tag, '')
+        //console.log('new Key: ', newKey, 'newBP: ', newBP)
         globalRemoveNodes.push(nodeFrom.identifier);
         if (originalFrom === identifierFrom) { // first recursive call
-            this.nodes[identifiertTo].fpointer.push(nKey) // add from node as child node of Tonode
+            //this.nodes[identifiertTo].fpointer.push(newKey) // add from node as child node of Tonode
+            this.updateFPointer(identifiertTo, newKey, 'add')
             var orgParent = globalTreeNodes[globalTreeNodes[originalFrom].bpointer]
             this.updateFPointer(orgParent.identifier, originalFrom, 'delete') // delete from parent
+            this.updateBPointer(identifierFrom, newBP)
+            //return  newKey
 
         }
-        this.nodes[identifierFrom].identifier = nKey //update current identifier
-        this.nodes[identifierFrom].fpointer = newFPointer // update its children
-        this.nodes[identifierFrom].bpointer = nBP
+        this.nodes[identifierFrom].identifier = newKey //update current identifier
+        //this.nodes[identifierFrom].fpointer = newFPointer // update its children
+        this.updateFPointer(identifierFrom, newFPointer, 'move')
+        this.updateBPointer(identifierFrom, newBP)
+        //this.nodes[identifierFrom].bpointer = newBP
 
-        return nKey;
+        return newKey;
     }
 
-    linkNode(identifierFrom, identifierTo){
+    linkNode(identifierFrom, identifierTo, recLvl) {
+        let that = this;
+        //console.log("Visiting Node " + identifierFrom);
         var nodeFrom = this.nodes[identifierFrom]
-        var nodeTo = this.nodes[identifierTo]
-        var linked = cloneDeep(nodeFrom);
-        linked.link = identifierFrom;
-        linked.identifier = identifierTo+identifierFrom
-        this.addNode(linked,identifierTo, true)
+        var parentIdx = nthLastIndexOf(identifierFrom, '/', recLvl)
+        var nodeIdentifier = identifierTo + identifierFrom.substring(parentIdx) + '_linked'
+        var parentIdentifier = identifierTo + identifierFrom.substring(parentIdx, identifierFrom.lastIndexOf('/')) + '_linked'
+        var linked;
+        if (nodeFrom.fpointer.length === 0 && recLvl !== 1) { // there should be at least one recursion
+            //console.log('No children. We are done')
+            linked = this.createNode(nodeFrom.tag, nodeIdentifier, nodeFrom.type, parentIdentifier, 'link')
+            linked = linked[1]
+            linked.link = identifierFrom
+            nodeFrom.updateLinkTo(linked.identifier, 'add')
+            return linked
+        }
+        var fPointer = []
+        nodeFrom.fpointer.forEach(function (child) {
+            //console.log('Children found. Clone this first: ', child)
+            linked = that.linkNode(child, identifierTo, recLvl + 1)
+            fPointer.push(linked.identifier)
+        })
+
+        // We've gone through all children and not found the goal node
+        //console.log("Went through all children of " + nodeFrom.identifier + ", returning to it's parent.");
+        var mode = 'link'
+        if (recLvl === 1) {// top level of recursion
+            mode = 'add'
+            parentIdentifier = identifierTo
+        }
+        linked = this.createNode(nodeFrom.tag, nodeIdentifier, nodeFrom.type, parentIdentifier, mode)
+        linked = linked[1]
+        linked.link = identifierFrom
+        linked.updateFPointer(fPointer, 'add')
+        nodeFrom.updateLinkTo(linked.identifier, 'add')
+        return linked
     }
 
+    changeNode(identifier, properties) {
+        let that = this;
+        var node = this.nodes[identifier]
+        if (node.fpointer.length === 0) {
+            node.updateProperties(properties)
+            return true
+        }
+        node.fpointer.forEach(function (child) {
+            //console.log('Children found. Clone this first: ', child)
+            that.changeNode(child, properties)
+        })
+        node.updateProperties(properties)
+        return true
+
+    }
+
+    render() {
+        let treeNode = this.props.nodes ? this.props.nodes['/'] : null;
+        globalTreeNodes = this.props.nodes;
+        //console.log (this.state.tree.nodes)
+        //console.log(globalTreeNodes)
+        return (
+            <div>
+                {treeNode ? <div className="tree">
+                    <ul id="treeRoot">
+                        <Node
+                            key={treeNode.identifier}
+                            identifier={treeNode.identifier}
+                            tag={treeNode.tag}
+                            type={treeNode.type}
+                            fpointer={treeNode.fpointer}
+                            treeNodes={Object.values(this.props.nodes)}
+                            properties={treeNode.properties}
+                            link={treeNode.link}
+                        />
+                    </ul>
+                </div> : null}
+            </div>)
+    }
 }
 
 Tree.propTypes = {
@@ -424,287 +560,4 @@ Tree.defaultProps = {
     root: null
 };
 
-var tree = new Tree({nodes: {}, root: null});
-tree.createNode("/", "/", 'directory', null);
-
-tree.createNode("a", "/a", 'directory', '/');
-
-tree.createNode("b", "/b", 'directory', '/');
-tree.createNode("a", "/b/a", 'directory', '/b');
-tree.createNode("c", "/b/a/c", 'directory', '/b/a');
-tree.createNode("d", "/b/a/c/d", 'directory', '/b/a/c');
-
-tree.createNode("e", "/b/a/c/d/e", 'file', '/b/a/c/d');
-tree.createNode("f", "/b/a/c/f", 'directory', '/b/a/c');
-
-
-class App extends React.Component {
-    constructor(props) {
-        super(props);
-        //this.tree = props.tree;
-        this.state = {
-            command: '',
-            nodeType: '',
-            nodeTag: '',
-            nodeIdentifier: '',
-            nodeIdentifierTo: '',
-            parent: '',
-            counter: 0,
-            tree: tree,
-            error: false,
-            errorMsg: {},
-            proceedCancel: false,
-            callback: ''
-        };
-        this.add = this.add.bind(this);
-        this.delete = this.delete.bind(this);
-        this.move = this.move.bind(this);
-        this.link = this.link.bind(this);
-        this.handleChange = this.handleChange.bind(this);
-        this.handleCommand = this.handleCommand.bind(this);
-
-    }
-
-    closeModal() {
-        this.setState({
-            error: false,
-            errorMsg: {}
-        })
-    }
-    closeModalProceedCancel() {
-        this.setState({
-            error: false,
-            errorMsg: {},
-            proceedCancel: true
-        }, () => { this[this.state.callback]();})
-
-    }
-
-    add() {
-        console.log(tree);
-        var response = tree.createNode(this.state.nodeTag, this.state.nodeIdentifier, this.state.nodeType, this.state.parent)
-        var success = response[0]
-        var errorMsg = response[1]
-        if(!(success)){
-            this.setState({
-                    error: true,
-                    errorMsg: errorMsg
-                })
-        }
-        else{
-        this.setState({
-            tree: tree
-        }, () => console.log('ADDED'));
-        }
-    }
-
-
-    delete() {
-        // either directory is empty/it's a file or user decided to delete anyways
-        if(tree.nodes[this.state.nodeIdentifier].fpointer.length === 0 ||
-            (this.state.proceedCancel && !(this.state.error) && Object.keys(this.state.errorMsg).length === 0)){
-            tree.removeNode(this.state.nodeIdentifier)
-                this.setState({
-                    tree: tree
-                }, () => console.log('DELETED'));
-            return true;
-        }
-        // Excepytion Handling
-        // check if directory is empty
-        if (tree.nodes[this.state.nodeIdentifier].fpointer) {
-            this.setState({
-                error: true,
-                errorMsg: {
-                    open: true,
-                    messageText: `The directory ${tree.nodes[this.state.nodeIdentifier].tag} you are trying to delete is not empty. 
-                Everything in it will be delete as well. Would you like to proceed?`,
-                    messageTitle: 'Warning: The directory is not empty',
-                    proceed: 'Proceed',
-                    cancel: 'Cancel',
-                    close: null,
-                },
-                callback: 'delete'
-            })
-        }
-    }
-
-    move() {
-
-        tree.moveNode(this.state.nodeIdentifier, this.state.nodeIdentifierTo, this.state.nodeIdentifier)
-        //tree.updateFPointer(tree.nodes[this.state.nodeIdentifier].bpointer,this.state.nodeIdentifier,'delete')
-        tree.updateIdentifier()
-        this.setState({
-            tree: tree
-        }, () => console.log('MOVED'));
-    }
-
-    link() {
-        // todo: mark all child nodes as link
-        tree.linkNode(this.state.nodeIdentifier, this.state.nodeIdentifierTo)
-        this.setState({
-            tree: tree
-        }, () => console.log('LINKED'));
-    }
-
-    handleChange(e) {
-        this.setState({
-            [e.target.name]: e.target.value
-        });
-    }
-
-    handleCommand() {
-        var command = this.state.command.split(' ');// split the user's command
-
-        // Exception Handling: wrong user command
-        if (!(command[0].match(/\b(\w*add|delete|move|link|change\w*)\b/g)) || command.length === 0) {
-            this.setState({
-                error: true,
-                errorMsg: {
-                    open: true,
-                    messageText: 'The comannd you used is unknown. ' +
-                        'Please try one of the follwoing: "add, delete, move, link, change"',
-                    messageTitle: 'Error: Wrong command!',
-                    proceed: null,
-                    cancel: null,
-                    close: 'Close'
-                }
-            })
-            return;
-        }
-        if (command[0] === 'add' && command.length !== 3) {
-            this.setState({
-                error: true,
-                errorMsg: {
-                    open: true,
-                    messageText: `The comannd you used is unknown. Please try the follwoing: "${command[0]} type fullpath"`,
-                    messageTitle: 'Error: Wrong command!',
-                    proceed: null,
-                    cancel: null,
-                    close: 'Close'
-                }
-            })
-            return;
-        }
-
-        if ('add' === command[0]) {
-
-            var nodeTag = command[2].substring(idx + 1)
-            var idx = command[2].lastIndexOf('/')
-            var parentName = command[2].substring(0, idx)
-            if (idx === 0) parentName = command[2].substring(0, idx + 1)// + '/' // root
-            //var par = this.findParent(command[2]);
-            //console.log('current node: ', command[2], 'parent node: ', par)
-            this.setState({
-                nodeType: command[1],
-                nodeTag: nodeTag,
-                nodeIdentifier: command[2],
-                parent: parentName,
-            }, () => {
-                this.add()
-            })
-        } else if ('delete' === command[0]) {
-            this.setState({
-                nodeIdentifier: command[1],
-            }, () => {
-                this.delete()
-            });
-        } else if ('move' === command[0]) {
-            this.setState({
-                nodeIdentifier: command[1],
-                nodeIdentifierTo: command[2],
-            }, () => {
-                this.move()
-            });
-        } else if ('link' === command[0]) {
-            this.setState({
-                nodeIdentifier: command[1],
-                nodeIdentifierTo: command[2]
-            }, () => {
-                this.link()
-            });
-        } else if ('change' === command[0]) {
-            this.setState({
-                nodeTag: nodeTag,
-                nodeIdentifier: command[1],
-                properties: command[2]
-            }, () => {
-                this.move()
-            });
-        } else {
-            console.log('else')
-        }
-
-    }
-
-    render() {
-        //console.log('render methods treeNodeList: ', this.state.tree)
-        //var treenodes = Object.entries(this.state.tree.nodes).filter((item) => item.idenfitier = this.state.tree.root);
-        var treeNode = this.state.tree.nodes ? this.state.tree.nodes['/'] : null;
-        globalTreeNodes = this.state.tree.nodes;
-        /*let treeNodes = [this.state.tree.nodes['harry']].map(function (treeNode) {
-            return (<Node
-                key={treeNode.identifier}
-                identifier={treeNode.identifier}
-                tag={treeNode.tag}
-                fpointer={treeNode.fpointer}
-            />)
-        })*/
-        return (
-            <div>
-                <h1>ThorDrive's File Viewer</h1>
-                <Popup open={this.state.error} modal position="right center" closeOnDocumentClick={false}
-                       closeOnEscape={false}>
-                    {close => (
-                        <div className="modal">
-                            <div className="header">{this.state.errorMsg.messageTitle}</div>
-                            <div className="content">{this.state.errorMsg.messageText}</div>
-                            <div className="actions">
-                                {this.state.errorMsg.proceed ? <button className="button" onClick={() => {
-                                    this.closeModalProceedCancel(true);
-                                }}>Proceed</button> : null}
-
-                                {this.state.errorMsg.cancel ? <button className="button" onClick={() => {
-                                    this.closeModalProceedCancel(false);
-                                }}>Cancel</button> : null}
-
-                                {this.state.errorMsg.close ? <button className="button" onClick={() => {
-                                    this.closeModal();
-                                }}>Close</button> : null}
-                            </div>
-                        </div>
-                    )}
-                </Popup>
-                <label>User Command
-                    <input
-                        type="text"
-                        name="command"
-                        value={this.state.command}
-                        onChange={this.handleChange}
-                        placeholder="e.g add directory /b"
-                    />
-                </label>
-                <button onClick={this.handleCommand}>Go</button>
-                {/*<button onClick={this.delete}>Delete</button>*/}
-                {/*<button onClick={this.move}>Move</button>*/}
-                {/*<button onClick={this.link}>Link</button>*/}
-                <h2>Your current file tree looks as follows</h2>
-                {treeNode ? <div className="tree">
-                    <ul id="treeRoot">
-                        <Node
-                            key={treeNode.identifier}
-                            identifier={treeNode.identifier}
-                            tag={treeNode.tag}
-                            type={treeNode.type}
-                            fpointer={treeNode.fpointer}
-                            treeNodes={Object.values(this.state.tree.nodes)}
-                            properties={treeNode.properties}
-                            link={treeNode.link}
-                        />
-                    </ul>
-                </div> : null}
-            </div>
-        )
-    }
-}
-
-export default App;
+export default Tree;
