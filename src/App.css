@@ -1,4 +1,4 @@
-.App {
+/*.App {
     text-align: center;
 }
 
@@ -35,11 +35,11 @@
     to {
         transform: rotate(360deg);
     }
-}
+}*/
 
 body {
     font-size: 1rem;
-    background: #f5f5f5;
+    font-family: Praktika,sans-serif;
 }
 
 .tree {
@@ -54,7 +54,7 @@ body {
     color: #212529;
 }
 
-span {
+span.info {
     font-size: 13px;
     font-style: italic;
     letter-spacing: .4px;
@@ -64,25 +64,34 @@ span {
 .fa-folder-open, .fa-folder {
     color: #007bff;
 }
+.fa-file {
+    color: lightgrey;
+}
 
 .fa-html5 {
     color: #f21f10;
 }
 
-ul {
+h1{
+    font-weight: 900;
+}
+.orange-text {
+    color: #ea5b36;
+}
+ul.filetree {
     padding-left: 5px;
     list-style: none;
 }
 
-ul a {
+ul.filetree a {
     cursor: pointer;
 }
 
-ul a:hover {
+ul.filetree a:hover {
     text-decoration: none;
 }
 
-li {
+ul.filetree li {
     position: relative;
     padding-top: 5px;
     padding-bottom: 5px;
@@ -92,7 +101,7 @@ li {
     box-sizing: border-box;
 }
 
-li:before {
+ul.filetree li:before {
     position: absolute;
     top: 25px;
     left: 0;
@@ -103,7 +112,7 @@ li:before {
     background-color: #666;
 }
 
-li:after {
+ul.filetree li:after {
     position: absolute;
     top: 0;
     bottom: 0;
@@ -114,50 +123,14 @@ li:after {
     background-color: #666;
 }
 
-li:last-child:after {
+ul.filetree li:last-child:after {
     height: 25px;
 }
-li .fa-share{
-    font-size: 1.5rem;
+ul.filetree li .fa-share{
+    font-size: 1.6rem;
     position: relative;
-    left: -1rem;
+    left: -0.7rem;
     bottom: -0.5rem;
+    margin-right: -0.7rem;
+    color: lightblue;
 }
-
-
-/*** POPUPS ***/
-.modal {
-  font-size: 12px;
-}
-.modal > .header {
-  width: 100%;
-  border-bottom: 1px solid gray;
-  font-size: 18px;
-  text-align: center;
-  padding: 5px;
-}
-.modal > .content {
-  width: 100%;
-  padding: 10px 5px;
-}
-.modal > .actions {
-  width: 100%;
-  padding: 10px 5px;
-  margin: auto;
-  text-align: center;
-}
-.modal > .close {
-  cursor: pointer;
-  position: absolute;
-  display: block;
-  padding: 2px 5px;
-  line-height: 20px;
-  right: -10px;
-  top: -10px;
-  font-size: 24px;
-  background: #ffffff;
-  border-radius: 18px;
-  border: 1px solid #cfcece;
-}
-
-

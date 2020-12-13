@@ -1,23 +1,14 @@
 //https://github.com/guotsuan/pyTree
 import React from "react";
-import PropTypes from "prop-types";
+import PropTypes, {func} from "prop-types";
 import './App.css';
-//import Popup from 'reactjs-popup';
-//import 'reactjs-popup/dist/index.css';
+import {ListGroupItem, Accordion} from "react-bootstrap";
+
 
 function sanitizeID(identifier) {
+    // possible todo: make use of function if complex file are given by user
     return identifier//.toString().trim().replace(" ", "_");
 }
-
-/*function executeFunctionByName(functionName, context , args ) {
-    var args = Array.prototype.slice.call(arguments, 2);
-    var namespaces = functionName.split(".");
-    var func = namespaces.pop();
-    for (var i = 0; i < namespaces.length; i++) {
-        context = context[namespaces[i]];
-    }
-    return context[func].apply(context, args);
-}*/
 
 function nthLastIndexOf(str, searchString, n) {
     if (str === null) {
@@ -30,101 +21,46 @@ function nthLastIndexOf(str, searchString, n) {
     return str.lastIndexOf(searchString, nthLastIndexOf(str, searchString, n) - 1);
 }
 
-
-/*function dfs(start, target){
-  console.log("Visiting Node " + start.name);
-    if (start.name === target) {
-        // We have found the goal node we we're searching for
-        console.log("Found the node we're looking for!");
-        return start;
-    }
-
-    // Recurse with all children
-    for (var i = 0; i < start.children.length; i++) {
-        var result = dfs(start.children[i], target);
-        if (result != null) {
-            // We've found the goal node while going down that child
-            return result;
-        }
-    }
-
-    // We've gone through all children and not found the goal node
-    console.log("Went through all children of " + start.value + ", returning to it's parent.");
-    return null;
-}*/
-
-
-/*const bfs = function (graph, start) {
-    //A Queue to manage the nodes that have yet to be visited
-    var queue = [];
-    //Adding the node to start from
-    queue.push(start);
-    //A boolean array indicating whether we have already visited a node
-    var visited = [];
-    //(The start node is already visited)
-    visited[start] = true;
-    // Keeping the distances (might not be necessary depending on your use case)
-    var distances = []; // No need to set initial values since every node is visted exactly once
-    //(the distance to the start node is 0)
-    distances[start] = 0;
-    //While there are nodes left to visit...
-    while (queue.length > 0) {
-        console.log("Visited nodes: " + visited);
-        console.log("Distances: " + distances);
-        var node = queue.shift();
-        console.log("Removing node " + node + " from the queue...");
-        //...for all neighboring nodes that haven't been visited yet....
-        for (var i = 1; i < graph[node].length; i++) {
-            if (graph[node][i] && !visited[i]) {
-                // Do whatever you want to do with the node here.
-                // Visit it, set the distance and add it to the queue
-                visited[i] = true;
-                distances[i] = distances[node] + 1;
-                queue.push(i);
-                console.log("Visiting node " + i + ", setting its distance to " + distances[i] + " and adding it to the queue");
-
-            }
-        }
-    }
-    console.log("No more nodes in the queue. Distances: " + distances);
-    return distances;
-};
-
-module.exports = {bfs};*/
-let globalTreeNodes = {};
-let globalRemoveNodes = [];
-
 class Node extends React.Component {
     constructor(props) {
         super(props);
         this.tag = props.tag;
         this.identifier = props.identifier;
-        if (props.fpointer) this.fpointer = props.fpointer;
-        if (props.bpointer) this.bpointer = props.bpointer;
-        if (props.type) this.type = props.type;
-        if (props.treeNodes) this.treeNodes = props.treeNodes;
-        if (props.properties) this.properties = props.properties;
-        if (props.link) this.link = props.link;
-        if (props.linkTo) this.linkTo = props.linkTo;
-        this.updateFPointer = this.updateFPointer.bind(this);
+        this.children = props.children;
+        this.parent = props.parent;
+        this.type = props.type;
+        this.treeNodes = props.treeNodes;
+        this.properties = props.properties;
+        this.link = props.link;
+        this.linkTo = props.linkTo;
+        this.updateChildren = this.updateChildren.bind(this);
         this.updateLinkTo = this.updateLinkTo.bind(this);
-        this.updateIdentifier = this.updateIdentifier.bind(this);
-        this.updateSizeProp = this.updateSizeProp.bind(this);
+        //this.updateIdentifier = this.updateIdentifier.bind(this);
+        this.calculateSize = this.calculateSize.bind(this)
+        this.updateSize = this.updateSize.bind(this);
         this.updateProperties = this.updateProperties.bind(this);
     }
-
-    updateFPointer(identifier, mode) {
+    updateChildren(identifier, mode) {
+        /**
+         * Updates the children list of the node
+         * @param {string} identifier The identifier of the node, that shall be added/ deleted
+         * @param {string} mode How new node got added to child list
+         */
         if (mode === "add") {
-            this.fpointer = this.fpointer.concat(identifier);
+            this.children = this.children.concat(identifier);
         } else if (mode === "delete") {
-            this.fpointer = this.fpointer.filter(x => x !== identifier);
+            this.children = this.children.filter(x => x !== identifier);
         } else if (mode === "move") {
-            this.fpointer = identifier;
+            this.children = identifier;
         }
-        this.updateSizeProp()
     }
 
     updateLinkTo(identifier, mode) {
+        /**
+         * Updates the list of the node that stores all it's symlinks
+         * @param {string} identifier The identifier of the node, that shall be added/ deleted
+         * @param {string} mode How new node got added to list
+         */
         if (mode === "add") {
             this.linkTo = this.linkTo.concat(identifier);
         } else if (mode === "delete") {
@@ -135,42 +71,53 @@ class Node extends React.Component {
     }
 
     updateProperties(prop) {
+        /**
+         * Updates the properties of the node
+         * @param {string} prop The property to be updated
+         */
         if (prop === 'hide') {
             this.properties.hide = !(this.properties.hide)
         }
     }
 
-    updateSizeProp() {
-        //   this.properties.size = this.fpointer.length > 0 ? this.fpointer.length.toString() + 'KB' : '1KB'
+    calculateSize(treeNodes) {
+        let count = 1;
+        this.children.forEach(function (child){
+            count += treeNodes[child].calculateSize(treeNodes);
+        })
+        return count
+    }
+    updateSize(treeNodes){
+        this.properties.size = this.children.length > 0 ? this.calculateSize(treeNodes).toString() + 'KB' : '1KB'
     }
 
-
-    updateIdentifier(thisNodes, nodeFrom) {
+    /*updateIdentifier(thisNodes, nodeFrom) {
         let node = this;
         node.identifier = nodeFrom.identifier + '/' + node.tag
-        if (this.fpointer.length === 0) {
+        if (this.children.length === 0) {
             return true;
         }
-        Object.values(thisNodes).filter(key => node.fpointer.includes(key.identifier)).map(function (child) {
+        Object.values(thisNodes).filter(key => node.children.includes(key.identifier)).map(function (child) {
             return child.updateIdentifier(thisNodes, node)
         })
-    }
-
+    }*/
 
     render() {
         let childNodes = null;
+        let treeNodes = this.props.treeNodes
         // TreeNode Component calls itself if children exist
-        if (this.props.fpointer) {
+        if (this.props.children) {
             //console.log(this.props.treeNodes)
-            //console.log('current node: ', this.props.tag, 'children: ', this.props.fpointer)
-            childNodes = this.props.treeNodes.filter(key => this.props.fpointer.includes(key.identifier)).map(function (child) {
+            //console.log('current node: ', this.props.tag, 'properties: ', this.props.properties)
+            childNodes = treeNodes.filter(key => this.props.children.includes(key.identifier)).map(function (child) {
+                //child.updateSize()
                 return (<Node
                     key={child.identifier}
                     identifier={child.identifier}
                     tag={child.tag}
                     type={child.type}
-                    fpointer={child.fpointer}
-                    treeNodes={Object.values(globalTreeNodes)}
+                    children={child.children}
+                    treeNodes={Object.values(treeNodes)}
                     properties={child.properties}
                     link={child.link}
                 />)
@@ -180,7 +127,7 @@ class Node extends React.Component {
         let fileExtension = '';
         let visibility = '';
         if (this.props.type === 'file') {
-            iconClass = 'fa fa-code'
+            iconClass = 'fa fa-file'
             fileExtension = '.' + this.props.properties.fileExtension
         }
         if (this.props.properties.hide) {
@@ -190,9 +137,11 @@ class Node extends React.Component {
         // display children if existent
         return (
             <li id={this.props.identifier} className={this.props.type}>
-                <i className={iconClass}></i>{this.props.link ?
-                <i className="fas fa-share"></i> : null} {this.props.tag}{fileExtension}<span> - {this.props.properties.size} {visibility}</span>
-                {childNodes ? <ul>{childNodes}</ul> : null}
+                <i className={iconClass}/>{this.props.link ?
+                <i className="fas fa-share"/> : null} {this.props.tag}{fileExtension}
+                {this.props.properties.hide? <span className="info"> - {visibility}</span> : null}
+                {/*<span className="info"> - {this.props.properties.size} {visibility}</span>*/}
+                {childNodes ? <ul className="filetree">{childNodes}</ul> : null}
             </li>
         )
     }
@@ -200,23 +149,24 @@ class Node extends React.Component {
 
 }
 
+
 Node.propTypes = {
     tag: PropTypes.string,
     identifier: PropTypes.string,
-    fpointer: PropTypes.array,
-    bpointer: PropTypes.string,
+    children: PropTypes.array,
+    parent: PropTypes.string,
     type: PropTypes.string,
     treeNodes: PropTypes.array,
     properties: PropTypes.object,
     link: PropTypes.string,
-    linkTo: PropTypes.array,
+    linkTo: PropTypes.array
 };
 
 Node.defaultProps = {
     tag: "",
     identifier: "",
-    fpointer: [],
-    bpointer: '',
+    children: [],
+    parent: '',
     type: 'directory',
     treeNodes: [],
     properties: {size: '1KB', hide: false, fileExtension: 'txt'},
@@ -230,72 +180,128 @@ class Tree extends React.Component {
         this.nodes = props.nodes;
         this.root = props.root;
         this.addNode = this.addNode.bind(this);
-        this.updateBPointer = this.updateBPointer.bind(this)
-        this.updateFPointer = this.updateFPointer.bind(this);
+        this.updateParent = this.updateParent.bind(this)
+        this.updateChildren = this.updateChildren.bind(this);
         this.createNode = this.createNode.bind(this);
         this.createNodeRecursive = this.createNodeRecursive.bind(this)
         this.removeNode = this.removeNode.bind(this);
-        this.moveNode = this.moveNode.bind(this);
-        this.linkNode = this.linkNode.bind(this);
-        this.isAncestor = this.isAncestor.bind(this);
-        this.updateIdentifier = this.updateIdentifier.bind(this)
+        this.moveOrLinkNode = this.moveOrLinkNode.bind(this)
+        //this.updateIdentifier = this.updateIdentifier.bind(this)
+        this.getAllChildNodesTagList = this.getAllChildNodesTagList.bind(this)
+        this.getAllChildNodesList = this.getAllChildNodesList.bind(this)
     }
 
-    isAncestor(ancestor, grandChild) {
-        /***Check if the @ancestor the preceding nodes of @grandchild.
-         :param ancestor: the node identifier
-         :param grandchild: the node identifier
-         :return: True or False
-         ***/
-        /*var parent = this.nodes[grandChild].predecessor(this._identifier)
-        var child = ancestor
-        while(parent !== null)
-            if(parent === ancestor) {
-                return true
-            }
-            else {
-                child = this.nodes[child].predecessor(this._identifier)
-                parent = this.nodes[child].predecessor(this._identifier)
-            }*/
-        return false
+    getAllChildNodesTagList(identifier){
+        /**
+         * Returns a list containing all successors (tag) of a given node
+         * @param {string} identifier The node whose succesors shall be found
+         */
+        let that = this;
+        //console.log("Visiting Node " + identifier);
+        let nodeFrom = this.nodes[identifier]
+        let children = [];
+        children.push(nodeFrom.tag);
+        if (nodeFrom.children.length === 0) { // there should be at least one recursion
+            //console.log('No children. We are done')
+            return [nodeFrom.tag]
+        }
+        let innerChildren = []
+        nodeFrom.children.forEach(function (child) {
+            //console.log('Children found. Go there first: ', child)
+            let inner = that.getAllChildNodesTagList(child)
+            innerChildren = [...inner, ...innerChildren]
+        })
+        // We've gone through all children and not found the goal node
+        //console.log("Went through all children of " + nodeFrom.identifier + ", returning to it's parent.");
+        children = [...children, ...innerChildren]
+        return children
     }
 
-    updateFPointer(nid, identifier, mode) {
+     getAllChildNodesList(identifier, symlink) {
+        /**
+         * Returns a list containing all successors (identifiers) of a given node
+         * @param {string} identifier The node whose succesors shall be found
+         * @param {boolean} symlink Whether to list the identifier of the node that is linked to
+         */
+        let that = this;
+        //console.log("Visiting Node " + identifier);
+        let nodeFrom = this.nodes[identifier]
+        let children = [];
+        if (symlink && nodeFrom.link) children.push(nodeFrom.link)
+        else children.push(nodeFrom.identifier)
+        if (nodeFrom.children.length === 0) { // there should be at least one recursion
+            //console.log('No children. We are done')
+            if (symlink && nodeFrom.link) return [nodeFrom.link]
+            else return [nodeFrom.identifier]
+        }
+        let innerChildren = []
+        nodeFrom.children.forEach(function (child) {
+            //console.log('Children found. Go there first: ', child)
+            let inner = that.getAllChildNodesList(child,symlink)
+            innerChildren = [...inner, ...innerChildren]
+        })
+        // We've gone through all children and not found the goal node
+        //console.log("Went through all children of " + nodeFrom.identifier + ", returning to it's parent.");
+        children = [...children, ...innerChildren]
+        return children
+    }
+
+    updateChildren(nid, identifier, mode) {
+        /**
+         * Updates the children list of a given node. Skip update when a symlink is performed. This happens elsewhere.
+         * @param {string} nid Node whose children list is to be updated
+         * @param {string} identifier Node whose children list is to be updated
+         * @param {boolean} mode If children update happened by creating symlinks
+         */
         if (nid === null || mode === 'link') {
             return false;
         } else {
-            this.nodes[nid].updateFPointer(identifier, mode);
+            this.nodes[nid].updateChildren(identifier, mode);
         }
     }
 
-    updateBPointer(nid, identifier) {
+    updateParent(nid, identifier) {
+        /**
+         * Updates the parent of a given node.
+         * @param {string} nid Node whose parent is to be updated
+         * @param {string} identifier Parent that shall be added
+         */
         if (nid === '/') return
-        this.nodes[nid].bpointer = identifier
+        this.nodes[nid].parent = identifier
     }
 
-    updateIdentifier() {
-        var nodes = this.nodes
+    /*updateIdentifier() {
+        let nodes = this.nodes
         globalRemoveNodes.forEach(function (key) {
             nodes[nodes[key].identifier] = nodes[key]
             delete nodes[key]
         })
         this.nodes = nodes
-    }
+    }*/
 
     createNodeRecursive(tag, identifier, type, parent, mode, recLvl) {
+        /**
+         * Basically same as the createNode function. But creates directories recursively when parent directory doesn't exist
+         * @param {string} tag Tag of the node
+         * @param {string} identifier Identifier of the node
+         * @param {string} type Type of the node
+         * @param {string} parent Parent of the node
+         * @param {string} mode How the node is created
+         * @param {number} recLvl Level of recursion
+         */
         let that = this;
         if (parent === '') parent = '/'
-        var node;
+        let node;
         if (this.nodes[parent]) { // stop recursion when parent exists
             node = new Node({
                 tag: tag,
                 identifier: identifier,
-                fpointer: [],
-                bpointer: null,
+                children: [],
+                parent: null,
                 type: type,
                 link: '',
                 linkTo: [],
-                properties: {}
+                properties: {size: '1KB', hide: false, fileExtension: 'txt'},
             });
             this.addNode(node, parent, mode);
             return [true, node];
@@ -304,20 +310,29 @@ class Tree extends React.Component {
         node = new Node({
             tag: tag,
             identifier: identifier,
-            fpointer: [],
-            bpointer: null,
+            children: [],
+            parent: null,
             type: type,
             link: '',
             linkTo: [],
-            properties: {}
+            properties: {size: '1KB', hide: false, fileExtension: 'txt'},
         });
         this.addNode(node, parent, mode);
         return [true, node];
     }
 
-    createNode(tag, identifier, type, parent, mode) {
+    createNode(tag, identifier, type, parent, mode,) {
+        /**
+         * Creates a new node object with given properties.
+         * @param {string} tag Tag of the node
+         * @param {string} identifier Identifier of the node
+         * @param {string} type Type of the node
+         * @param {string} parent Parent of the node
+         * @param {string} mode How the node is created
+         * @param {number} recLvl Level of recursion
+         */
         // Exception Handling
-        var errorMsg;
+        let errorMsg;
         if (mode !== 'link') {
             if (parent) {
                 //parent does not exist
@@ -373,11 +388,11 @@ class Tree extends React.Component {
                 return [false, errorMsg];
             }
         }
-        var node = new Node({
+        let node = new Node({
             tag: tag,
             identifier: identifier,
-            fpointer: [],
-            bpointer: null,
+            children: [],
+            parent: null,
             type: type,
             link: '',
             linkTo: [],
@@ -388,6 +403,12 @@ class Tree extends React.Component {
     }
 
     addNode(node, parent, mode) {
+        /**
+         * Adds the node to the tree and updates children and parent.
+         * @param {Node} node Node object which is to be added
+         * @param {string} parent Parent of the node
+         * @param {string} mode How the node is created
+         */
         if (typeof node === Node) {
             return console.log("First parameter must be object of Class::Node.");
         }
@@ -397,127 +418,117 @@ class Tree extends React.Component {
             parent = sanitizeID(parent);
         }
         this.nodes[node.identifier] = node; //update dict
-        this.updateFPointer(parent, node.identifier, mode);
-        this.updateBPointer(node.identifier, parent)
+        this.updateChildren(parent, node.identifier, mode);
+        this.updateParent(node.identifier, parent)
     }
 
     removeNode(identifier) {
-        var nodes = this.nodes
+        /**
+         * Removes the node from the tree and updates children, parent and the symlink list.
+         * @param {string} identifier Node object which is to be removed
+         */
+        let nodes = this.nodes
+        let that = this;
         Object.keys(this.nodes).forEach(function (key) {
             if (key.startsWith(identifier)) {
-                if (nodes[nodes[key].bpointer]) {
-                    nodes[nodes[key].bpointer].updateFPointer(identifier, 'delete') // delete child references from parent
+                if (nodes[nodes[key].parent]) {
+                    nodes[nodes[key].parent].updateChildren(identifier, 'delete') // delete child references from parent
                 }
-                if (key.includes('_linked')) {
+                if (key.includes('_linked') && nodes[key].link in nodes) {
                     nodes[nodes[key].link].updateLinkTo(identifier, 'delete') // delete link references from parent
                 }
-                if (nodes[key].fpointer) { // check for childNodes
-                    //console.log('Not Empty. ChildNodes will be deleted')
+                if (nodes[key].linkTo) { // if the nde was symlinked delete the symlinks
+                    nodes[key].linkTo.forEach(function (linked) {
+                        that.removeNode(linked)
+                    })
+                }
+                if (nodes[key].children) { // check for childNodes
+                    console.log('Not Empty. ChildNodes will be deleted')
                 }
                 delete nodes[key]; // delete node and all childNodes
             }
         })
         this.nodes = nodes;
-        //console.log(nodes);
     }
 
-    moveNode(identifierFrom, identifiertTo, originalFrom) {
+
+    moveOrLinkNode(identifierFrom, identifierTo, recLvl, link) {
+        /**
+         * Moves the node to another node and marks them as a symlink if link is true.
+         * Overwrites existing nodes, when the user confirmed beforehand.
+         * @param {string} identifierFrom Identifier from where to move
+         * @param {string} identifierTo Identifier to where to move
+         * @param {number} recLvl Level of recursion
+         * @param {boolean} link: Whether the node shall be linked
+         */
         let that = this;
         //console.log("Visiting Node " + identifierFrom);
-        var nodeFrom = this.nodes[identifierFrom];
-        var newKey = identifiertTo + nodeFrom.identifier.replace(originalFrom, identifiertTo)
-        var newBP = newKey.replace('/' + nodeFrom.tag, '')
-        if (nodeFrom.fpointer.length === 0) {
-            // We have found the goal node we we're searching for
-            //console.log("Found the node we're looking for!");
-            globalRemoveNodes.push(nodeFrom.identifier);
-            this.nodes[identifierFrom].identifier = newKey
-            this.updateBPointer(identifierFrom, newBP)
-            //this.nodes[identifierFrom].bpointer = newBP
-            //console.log('new Key: ', newKey, 'new bpointer: ', newBP)
-            return newKey;
+        let nodeFrom = this.nodes[identifierFrom]
+        let parentIdx = nthLastIndexOf(identifierFrom, '/', recLvl)
+        let nodeIdentifier = identifierTo !== '/'? identifierTo + identifierFrom.substring(parentIdx) : identifierFrom.substring(parentIdx)
+        let parentIdentifier = identifierTo + identifierFrom.substring(parentIdx, identifierFrom.lastIndexOf('/'))
+        if(link){
+            nodeIdentifier += '_linked'
+            parentIdentifier += '_linked'
         }
-
-        // Recurse with all children
-        var newFPointer = []
-        nodeFrom.fpointer.forEach(function (child) {
-            var result = that.moveNode(child, identifiertTo, originalFrom);
-            //console.log('returned newkey ', result)
-            newFPointer.push(result)
-        })
-
-        // We've gone through all children and not found the goal node
-        //console.log("Went through all children of " + nodeFrom.identifier + ", returning to it's parent.");
-
-        //var nKey = identifiertTo + nodeFrom.identifier.replace(originalFrom, identifiertTo)// + '/' + nodeFrom.tag
-        //var nBP = nKey.replace('/' + nodeFrom.tag, '')
-        //console.log('new Key: ', newKey, 'newBP: ', newBP)
-        globalRemoveNodes.push(nodeFrom.identifier);
-        if (originalFrom === identifierFrom) { // first recursive call
-            //this.nodes[identifiertTo].fpointer.push(newKey) // add from node as child node of Tonode
-            this.updateFPointer(identifiertTo, newKey, 'add')
-            var orgParent = globalTreeNodes[globalTreeNodes[originalFrom].bpointer]
-            this.updateFPointer(orgParent.identifier, originalFrom, 'delete') // delete from parent
-            this.updateBPointer(identifierFrom, newBP)
-            //return  newKey
-
-        }
-        this.nodes[identifierFrom].identifier = newKey //update current identifier
-        //this.nodes[identifierFrom].fpointer = newFPointer // update its children
-        this.updateFPointer(identifierFrom, newFPointer, 'move')
-        this.updateBPointer(identifierFrom, newBP)
-        //this.nodes[identifierFrom].bpointer = newBP
-
-        return newKey;
-    }
-
-    linkNode(identifierFrom, identifierTo, recLvl) {
-        let that = this;
-        //console.log("Visiting Node " + identifierFrom);
-        var nodeFrom = this.nodes[identifierFrom]
-        var parentIdx = nthLastIndexOf(identifierFrom, '/', recLvl)
-        var nodeIdentifier = identifierTo + identifierFrom.substring(parentIdx) + '_linked'
-        var parentIdentifier = identifierTo + identifierFrom.substring(parentIdx, identifierFrom.lastIndexOf('/')) + '_linked'
-        var linked;
-        if (nodeFrom.fpointer.length === 0 && recLvl !== 1) { // there should be at least one recursion
+        let newNode;
+        if (nodeFrom.children.length === 0 && recLvl !== 1) { // there should be at least one recursion
             //console.log('No children. We are done')
-            linked = this.createNode(nodeFrom.tag, nodeIdentifier, nodeFrom.type, parentIdentifier, 'link')
-            linked = linked[1]
-            linked.link = identifierFrom
-            nodeFrom.updateLinkTo(linked.identifier, 'add')
-            return linked
+
+            // handle rename for directories
+            newNode = this.createNode(nodeFrom.tag, nodeIdentifier, nodeFrom.type, parentIdentifier, 'link')
+            newNode = newNode[1]
+            if(link){
+                newNode.link = identifierFrom
+                nodeFrom.updateLinkTo(newNode.identifier, 'add')
+            }
+            else{
+                this.nodes[nodeIdentifier] = newNode // update tree node list
+                delete this.nodes[identifierFrom]
+            }
+            return newNode
         }
-        var fPointer = []
-        nodeFrom.fpointer.forEach(function (child) {
+        let newChildren = []
+        nodeFrom.children.forEach(function (child) {
             //console.log('Children found. Clone this first: ', child)
-            linked = that.linkNode(child, identifierTo, recLvl + 1)
-            fPointer.push(linked.identifier)
+            newNode = that.moveOrLinkNode(child, identifierTo, recLvl + 1, link)
+            newChildren.push(newNode.identifier)
         })
 
         // We've gone through all children and not found the goal node
         //console.log("Went through all children of " + nodeFrom.identifier + ", returning to it's parent.");
-        var mode = 'link'
+        let mode = 'link'
         if (recLvl === 1) {// top level of recursion
             mode = 'add'
             parentIdentifier = identifierTo
         }
-        linked = this.createNode(nodeFrom.tag, nodeIdentifier, nodeFrom.type, parentIdentifier, mode)
-        linked = linked[1]
-        linked.link = identifierFrom
-        linked.updateFPointer(fPointer, 'add')
-        nodeFrom.updateLinkTo(linked.identifier, 'add')
-        return linked
+        newNode = this.createNode(nodeFrom.tag, nodeIdentifier, nodeFrom.type, parentIdentifier, mode)
+        newNode = newNode[1]
+        newNode.updateChildren(newChildren, 'add')
+        if(link){
+            newNode.link = identifierFrom
+            nodeFrom.updateLinkTo(newNode.identifier, 'add')
+        }
+        else{
+            this.nodes[nodeIdentifier] = newNode // update tree node list
+            delete this.nodes[identifierFrom]
+        }
+        return newNode
     }
 
     changeNode(identifier, properties) {
+        /**
+         * Changes the properties of a given node.
+         * @param {string} identifier Identifier of the node whose properties are to be changed
+         * @param {string} properties Property of the node. It is a key in the properties object of a node
+         */
         let that = this;
-        var node = this.nodes[identifier]
-        if (node.fpointer.length === 0) {
+        let node = this.nodes[identifier]
+        if (node.children.length === 0) {
             node.updateProperties(properties)
             return true
         }
-        node.fpointer.forEach(function (child) {
-            //console.log('Children found. Clone this first: ', child)
+        node.children.forEach(function (child) {
             that.changeNode(child, properties)
         })
         node.updateProperties(properties)
@@ -525,24 +536,25 @@ class Tree extends React.Component {
 
     }
 
+
+
     render() {
         let treeNode = this.props.nodes ? this.props.nodes['/'] : null;
-        globalTreeNodes = this.props.nodes;
-        //console.log (this.state.tree.nodes)
-        //console.log(globalTreeNodes)
+        //treeNode.updateSize()
         return (
             <div>
                 {treeNode ? <div className="tree">
-                    <ul id="treeRoot">
+                    <ul id="treeRoot" className="filetree">
                         <Node
                             key={treeNode.identifier}
                             identifier={treeNode.identifier}
                             tag={treeNode.tag}
                             type={treeNode.type}
-                            fpointer={treeNode.fpointer}
+                            children={treeNode.children}
                             treeNodes={Object.values(this.props.nodes)}
                             properties={treeNode.properties}
                             link={treeNode.link}
+                            onDrag
                         />
                     </ul>
                 </div> : null}
