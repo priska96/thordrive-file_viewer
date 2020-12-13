@@ -1,8 +1,6 @@
-//https://github.com/guotsuan/pyTree
 import React from "react";
-import PropTypes, {func} from "prop-types";
+import PropTypes from "prop-types";
 import './App.css';
-import {ListGroupItem, Accordion} from "react-bootstrap";
 
 
 function sanitizeID(identifier) {
@@ -194,7 +192,7 @@ class Tree extends React.Component {
     getAllChildNodesTagList(identifier){
         /**
          * Returns a list containing all successors (tag) of a given node
-         * @param {string} identifier The node whose succesors shall be found
+         * @param {string} identifier The node whose successors shall be found
          */
         let that = this;
         //console.log("Visiting Node " + identifier);
@@ -220,7 +218,7 @@ class Tree extends React.Component {
      getAllChildNodesList(identifier, symlink) {
         /**
          * Returns a list containing all successors (identifiers) of a given node
-         * @param {string} identifier The node whose succesors shall be found
+         * @param {string} identifier The node whose successors shall be found
          * @param {boolean} symlink Whether to list the identifier of the node that is linked to
          */
         let that = this;
@@ -374,7 +372,7 @@ class Tree extends React.Component {
                 return [false, errorMsg];
             }
         }
-        // if no parent check if root already exsits. Otherwise throw error. There can only be one root
+        // if no parent check if root already exists. Otherwise throw error. There can only be one root
         if (parent === null) {
             if (this.root !== null) {
                 errorMsg = {
@@ -437,7 +435,7 @@ class Tree extends React.Component {
                 if (key.includes('_linked') && nodes[key].link in nodes) {
                     nodes[nodes[key].link].updateLinkTo(identifier, 'delete') // delete link references from parent
                 }
-                if (nodes[key].linkTo) { // if the nde was symlinked delete the symlinks
+                if (nodes[key].linkTo !== null) { // if the nde was symlinked delete the symlinks
                     nodes[key].linkTo.forEach(function (linked) {
                         that.removeNode(linked)
                     })
@@ -470,12 +468,13 @@ class Tree extends React.Component {
         if(link){
             nodeIdentifier += '_linked'
             parentIdentifier += '_linked'
+        }else{
+            this.updateChildren([nodeFrom.parent], identifierFrom, 'delete' )
         }
         let newNode;
         if (nodeFrom.children.length === 0 && recLvl !== 1) { // there should be at least one recursion
             //console.log('No children. We are done')
 
-            // handle rename for directories
             newNode = this.createNode(nodeFrom.tag, nodeIdentifier, nodeFrom.type, parentIdentifier, 'link')
             newNode = newNode[1]
             if(link){

@@ -1,5 +1,5 @@
 {
-  "name": "thordrive-file_viewer",
+  "name": "thordrive",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
@@ -9,7 +9,7 @@
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
     "react-scripts": "4.0.1",
-    "web-vitals": "^1.0.1"
+    "web-vitals": "^0.2.4"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -36,14 +36,7 @@
     ]
   },
   "devDependencies": {
-    "@material-ui/core": "^4.11.2",
-    "array-move": "^3.0.1",
-    "lodash": "^4.17.20",
     "prop-types": "^15.7.2",
-    "react-bootstrap": "^1.4.0",
-    "react-drag-listview": "^0.1.7",
-    "react-router-dom": "^5.2.0",
-    "react-sortable-hoc": "^1.11.0",
-    "reactjs-popup": "^2.0.4"
+    "react-bootstrap": "^1.4.0"
   }
 }

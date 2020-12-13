@@ -202,7 +202,7 @@ class App extends React.Component {
             return false;
         } else {
             // directory/ file has a symlink notice user these will delete as well
-            if (this.state.tree.nodes[this.state.nodeIdentifier].linkTo) { // check if has a symlink
+            if (this.state.tree.nodes[this.state.nodeIdentifier].linkTo !== null) { // check if has a symlink
             let possible = this.state.tree.nodes[this.state.nodeIdentifier].type === 'directory' ?
                 `The directory ${this.state.tree.nodes[this.state.nodeIdentifier].tag} you are trying to delete is not empty. ` : ''
                 this.setState({
@@ -240,7 +240,7 @@ class App extends React.Component {
             })
             return false;
         }
-        return this.delete();
+        this.delete();
     }
 
     preMove() {
@@ -261,8 +261,10 @@ class App extends React.Component {
                 })
                 return false;
         }
+        let nodeFrom = this.state.tree.nodes[this.state.nodeIdentifier]
         let nodeTo = this.state.tree.nodes[this.state.nodeIdentifierTo]
-        if (nodeTo.children.includes(this.state.nodeIdentifierTo+this.state.nodeIdentifier)) {
+        let to = nodeTo.tag === '/'? nodeFrom.tag :'/'+nodeFrom.tag;
+        if (nodeTo.children.includes(this.state.nodeIdentifierTo + to)) {
             if (this.state.tree.nodes[this.state.nodeIdentifier].type === 'directory') { //overwrite directories possible todo: merge  or rename directories
                 this.setState({
                     error: true,
@@ -300,19 +302,30 @@ class App extends React.Component {
                 return false;
             }
         }
-        return this.move();
+        this.move();
     }
 
     move() {
         //Exception Handling
         // user decided to overwrite existing directories/files
+        let tree = this.state.tree;
+        let nodeFrom = tree.nodes[this.state.nodeIdentifier]
+        let nodeTo = tree.nodes[this.state.nodeIdentifierTo]
+        let that = this
+        let to = nodeTo.tag === '/'? nodeFrom.tag :'/'+nodeFrom.tag;
         if (this.state.overWrite) {
-            let existingIdentifier = this.state.nodeIdentifierTo + this.state.nodeIdentifier//.substring(this.state.nodeIdentifier.lastIndexOf('/') + 1)
-            this.state.tree.removeNode(existingIdentifier)
+            let existingIdentifier = this.state.nodeIdentifierTo + to//.substring(this.state.nodeIdentifier.lastIndexOf('/') + 1)
+            tree.removeNode(existingIdentifier)
         }
         this.state.tree.moveOrLinkNode(this.state.nodeIdentifier, this.state.nodeIdentifierTo, 1, false)
+         // check if this folder was symlinked somewhere, then the whole proccess of adding shall be repeat
+        if(tree.nodes[this.state.nodeIdentifierTo].linkTo !== null){
+                tree.nodes[this.state.nodeIdentifierTo].linkTo.forEach(function (symlink){
+                    tree.moveOrLinkNode(that.state.nodeIdentifierTo+to, symlink, 1, true)
+                })
+            }
         this.setState({
-            tree: this.state.tree,
+            tree: tree,
             overWrite: false
         }, () => {
                 /*let tree = this.state.tree
@@ -552,6 +565,21 @@ class App extends React.Component {
                 })
                 return;
             }
+            if (this.state.tree.nodes[command[2]].type === 'file') {
+                this.setState({
+                    error: true,
+                    errorMsg: {
+                        open: true,
+                        messageText: `The target path leads to a file. ${command[1]} can not be moved into a file. 
+                        Cannot move.`,
+                        messageTitle: `Error: Target is file`,
+                        icon: 'fas fa-times-circle',
+                        proceed: null,
+                        cancel: 'Close'
+                    }
+                })
+                return;
+            }
             this.setState({
                 nodeIdentifier: command[1],
                 nodeIdentifierTo: command[2],
@@ -750,7 +778,7 @@ class App extends React.Component {
                             name="renameCommand"
                             value={this.state.renameCommand}
                             onChange={this.handleChange}
-                            placeholder="e.g add directory /b"
+                            placeholder="e.g. XZY"
                         />
                     </InputGroup>
                     <Modal.Footer>
